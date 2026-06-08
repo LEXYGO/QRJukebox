@@ -1,4 +1,4 @@
-package com.example.bttr_hitster
+package com.lennardhanss.bttrhitster
 
 import io.flutter.embedding.android.FlutterActivity
 

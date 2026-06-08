@@ -6,7 +6,7 @@
     tools:ignore="ScopedStorage"/>
     
     <application
-        android:label="bttr_hitster"
+        android:label="bttrHitster"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
