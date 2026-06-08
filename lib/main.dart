@@ -360,6 +360,7 @@ class _PlayerPageState extends State<PlayerPage> {
 
   File? _file;
   bool _loading = true;
+  bool _completed = false;
   String? _error;
   String? _packName;
   bool _playing = false;
@@ -370,8 +371,14 @@ class _PlayerPageState extends State<PlayerPage> {
   void initState() {
     super.initState();
     _player.onPlayerStateChanged.listen((s) {
-      if (mounted) setState(() => _playing = s == PlayerState.playing);
+      if (mounted) {
+        setState(() {
+          _playing = s == PlayerState.playing;
+          if (_playing) _completed = false;
+        });
+      }
     });
+
     _player.onPositionChanged.listen((d) {
       if (mounted) setState(() => _pos = d);
     });
@@ -379,7 +386,13 @@ class _PlayerPageState extends State<PlayerPage> {
       if (mounted) setState(() => _dur = d);
     });
     _player.onPlayerComplete.listen((_) {
-      if (mounted) setState(() { _playing = false; _pos = Duration.zero; });
+      if (!mounted) return;
+      
+      setState(() {
+        _playing = false;
+        _completed = true;
+        _pos = Duration.zero;
+      });
     });
     _loadAndPlay();
   }
@@ -471,14 +484,17 @@ class _PlayerPageState extends State<PlayerPage> {
   Future<void> _togglePlayPause() async {
     if (_playing) {
       await _player.pause();
-    } else if (_file != null) {
-      if (_dur > Duration.zero && _pos >= _dur) {
-        // Am Ende: von vorne starten
-        await _player.play(DeviceFileSource(_file!.path));
-      } else {
-        await _player.resume();
-      }
+      return;
     }
+
+    if (_file == null) return;
+
+    if (_completed) {
+      await _player.play(DeviceFileSource(_file!.path));
+      return;
+    }
+
+    await _player.resume();
   }
 
   @override
@@ -812,10 +828,10 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             child: const Text(
               '<Medienordner>/\n'
-              '├── aaaa0015/\n'
+              '├── aaaa0015_Superhits/\n'
               '│   ├── 00094_Song Title.mp3\n'
               '│   └── 00095_Another Song.mp3\n'
-              '└── bbbb0023/\n'
+              '└── bbbb0023_SomeOtherFolder/\n'
               '    └── 00001_Third Song.mp3',
               style: TextStyle(fontFamily: 'monospace', fontSize: 12),
             ),
