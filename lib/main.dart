@@ -12,19 +12,19 @@ import 'package:marquee/marquee.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
-  runApp(BttrHitsterApp(prefs: prefs));
+  runApp(QRJukeboxApp(prefs: prefs));
 }
 
 // ─── App Root ──────────────────────────────────────────────────────────────
 
-class BttrHitsterApp extends StatelessWidget {
+class QRJukeboxApp extends StatelessWidget {
   final SharedPreferences prefs;
-  const BttrHitsterApp({super.key, required this.prefs});
+  const QRJukeboxApp({super.key, required this.prefs});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'bttrHitster',
+      title: 'QR Jukebox',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF2200FF),
@@ -38,63 +38,66 @@ class BttrHitsterApp extends StatelessWidget {
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
-/// Parst z.B. "www.hitstergame.com/de/aaaa0015/00094"
-/// → (gameId: 'aaaa0015', trackNumber: '00094')
-/// Nimmt einfach die letzten zwei Pfadsegmente.
-({String gameId, String trackNumber})? parseHitsterUrl(String raw) {
+/// Parses a URL into its components: host, language, gameId, trackId.
+/// Expected format: https://<host>/<language>/<gameId>/<trackId>
+({String host, String language, String gameId, String trackId})? parseUrl(String raw) {
   try {
     final url = raw.startsWith('http') ? raw : 'https://$raw';
-    final segs = Uri.parse(url)
-        .pathSegments
-        .where((s) => s.isNotEmpty)
-        .toList();
-    if (segs.length >= 2) {
+    final uri = Uri.parse(url);
+    final host = uri.host;
+    final segs = uri.pathSegments.where((s) => s.isNotEmpty).toList();
+    if (host.isNotEmpty && segs.length >= 3) {
       return (
-        gameId: segs[segs.length - 2],
-        trackNumber: segs[segs.length - 1],
+        host: host,
+        language: segs[0],
+        gameId: segs[1],
+        trackId: segs[2],
       );
     }
   } catch (_) {}
   return null;
 }
 
-/// Sucht in `mediaRoot/gameId/` nach einer MP3, deren Dateiname mit
-/// `trackNumber` beginnt – sowohl mit führenden Nullen ("00094")
-/// als auch ohne ("94").
-Future<File?> findTrackFile(
-  String mediaRoot,
-  String gameId,
-  String trackNumber,
-) async {
+/// Resolves the local audio file based on the new folder rules:
+/// /root/<host>/<language>/<gameId>_*/<trackId>_*.<ext>
+Future<File?> findTrackFile({
+  required String mediaRoot,
+  required String host,
+  required String language,
+  required String gameId,
+  required String trackId,
+}) async {
   final baseDir = Directory(mediaRoot);
   if (!await baseDir.exists()) return null;
 
-  // Ordner finden, der mit gameId beginnt (z.B. "aaaa0015_Superhits")
+  // 1. Host folder
+  final hostDir = Directory(p.join(mediaRoot, host));
+  if (!await hostDir.exists()) return null;
+
+  // 2. Language folder
+  final langDir = Directory(p.join(hostDir.path, language));
+  if (!await langDir.exists()) return null;
+
+  // 3. Game folder (prefix match gameId)
   Directory? gameDir;
-  await for (final entity in baseDir.list()) {
-    if (entity is Directory &&
-        p.basename(entity.path).startsWith(gameId)) {
+  await for (final entity in langDir.list()) {
+    if (entity is Directory && p.basename(entity.path).startsWith(gameId)) {
       gameDir = entity;
       break;
     }
   }
   if (gameDir == null) return null;
 
-  // ... Rest bleibt gleich, nur dir → gameDir:
-  final trackNum = int.tryParse(trackNumber);
+  // 4. Track file (prefix match trackId)
   await for (final entity in gameDir.list()) {
     if (entity is! File) continue;
-    if (p.extension(entity.path).toLowerCase() != '.mp3') continue;
+    final ext = p.extension(entity.path).toLowerCase();
+    if (ext != '.mp3' && ext != '.m4a' && ext != '.wav') continue;
+    
     final name = p.basenameWithoutExtension(entity.path);
-    if (name.startsWith(trackNumber)) return entity;
-    if (trackNum != null) {
-      final numStr = trackNum.toString();
-      if (name.startsWith(numStr)) {
-        final rest = name.substring(numStr.length);
-        if (rest.isEmpty || !RegExp(r'\d').hasMatch(rest[0])) return entity;
-      }
-    }
+    if (name.startsWith(trackId)) return entity;
   }
+  
   return null;
 }
 
@@ -126,21 +129,20 @@ class _HomePageState extends State<HomePage> {
   String get _mediaRoot => widget.prefs.getString('mediaRootPath') ?? '';
 
   void _handleUrl(String url) {
-    final parsed = parseHitsterUrl(url);
+    final parsed = parseUrl(url);
     if (parsed == null) {
-      _snack('Ungültige Hitster-URL');
+      _snack('Invalid URL format');
       return;
     }
     if (_mediaRoot.isEmpty) {
-      _snack('Bitte zuerst den Medienordner in den Einstellungen festlegen.');
+      _snack('Please set the media folder in settings first.');
       return;
     }
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => PlayerPage(
-          gameId: parsed.gameId,
-          trackNumber: parsed.trackNumber,
+          parsed: parsed,
           mediaRoot: _mediaRoot,
         ),
       ),
@@ -165,12 +167,12 @@ class _HomePageState extends State<HomePage> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('URL eingeben'),
+        title: const Text('Enter URL'),
         content: TextField(
           controller: _urlController,
           decoration: const InputDecoration(
-            labelText: 'Hitster-URL',
-            hintText: 'hitstergame.com/de/aaaa0015/00094',
+            labelText: 'URL',
+            hintText: 'example.com/de/aaaa0015/00015',
             border: OutlineInputBorder(),
           ),
           autofocus: true,
@@ -179,7 +181,7 @@ class _HomePageState extends State<HomePage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Abbrechen'),
+            child: const Text('Cancel'),
           ),
           FilledButton(
             onPressed: () => _submitDialog(ctx),
@@ -202,7 +204,7 @@ class _HomePageState extends State<HomePage> {
       context,
       MaterialPageRoute(builder: (_) => SettingsPage(prefs: widget.prefs)),
     );
-    setState(() {}); // Ordnername in der Anzeige aktualisieren
+    setState(() {}); 
   }
 
   @override
@@ -213,12 +215,12 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: cs.inversePrimary,
-        title: const Text('bttrHitster'),
+        title: const Text('QR Jukebox'),
         actions: [
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: _openSettings,
-            tooltip: 'Einstellungen',
+            tooltip: 'Settings',
           ),
         ],
       ),
@@ -228,10 +230,10 @@ class _HomePageState extends State<HomePage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.music_note_rounded, size: 96, color: cs.primary),
+              Icon(Icons.qr_code_2_rounded, size: 96, color: cs.primary),
               const SizedBox(height: 12),
               Text(
-                'bttrHitster',
+                'QR Jukebox',
                 style: Theme.of(context).textTheme.headlineLarge?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: cs.primary,
@@ -251,7 +253,7 @@ class _HomePageState extends State<HomePage> {
                     child: Text(
                       hasRoot
                           ? p.basename(_mediaRoot)
-                          : 'Kein Medienordner konfiguriert',
+                          : 'No media folder configured',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: hasRoot ? Colors.green : Colors.orange,
                       ),
@@ -266,7 +268,7 @@ class _HomePageState extends State<HomePage> {
                 child: FilledButton.icon(
                   onPressed: _startScanner,
                   icon: const Icon(Icons.qr_code_scanner),
-                  label: const Text('QR-Code scannen'),
+                  label: const Text('Scan QR Code'),
                   style: FilledButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
@@ -278,7 +280,7 @@ class _HomePageState extends State<HomePage> {
                 child: OutlinedButton.icon(
                   onPressed: _showUrlDialog,
                   icon: const Icon(Icons.edit),
-                  label: const Text('URL manuell eingeben'),
+                  label: const Text('Enter URL manually'),
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
@@ -291,7 +293,7 @@ class _HomePageState extends State<HomePage> {
                   child: OutlinedButton.icon(
                     onPressed: _openSettings,
                     icon: const Icon(Icons.folder_open),
-                    label: const Text('Medienordner einrichten'),
+                    label: const Text('Setup Media Folder'),
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       foregroundColor: Colors.orange,
@@ -322,7 +324,7 @@ class _ScannerPageState extends State<ScannerPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Scan your Game-Cards QR-Code')),
+      appBar: AppBar(title: const Text('Scan QR Code')),
       body: MobileScanner(
         onDetect: (capture) {
           if (_hasScanned) return;
@@ -340,14 +342,12 @@ class _ScannerPageState extends State<ScannerPage> {
 // ─── Player Page ───────────────────────────────────────────────────────────
 
 class PlayerPage extends StatefulWidget {
-  final String gameId;
-  final String trackNumber;
+  final ({String host, String language, String gameId, String trackId}) parsed;
   final String mediaRoot;
 
   const PlayerPage({
     super.key,
-    required this.gameId,
-    required this.trackNumber,
+    required this.parsed,
     required this.mediaRoot,
   });
 
@@ -362,7 +362,7 @@ class _PlayerPageState extends State<PlayerPage> {
   bool _loading = true;
   bool _completed = false;
   String? _error;
-  String? _packName;
+  String? _gameName;
   bool _playing = false;
   Duration _pos = Duration.zero;
   Duration _dur = Duration.zero;
@@ -411,7 +411,7 @@ class _PlayerPageState extends State<PlayerPage> {
         if (mounted) {
           setState(() {
             _error =
-                'Speicherzugriff verweigert.\n\nBitte in den Android-Einstellungen\n"Alle Dateien verwalten" erlauben.';
+                'Storage access denied.\n\nPlease allow "Manage all files" in Android settings.';
             _loading = false;
           });
         }
@@ -419,30 +419,36 @@ class _PlayerPageState extends State<PlayerPage> {
       }
     }
     final file = await findTrackFile(
-        widget.mediaRoot, widget.gameId, widget.trackNumber);
+      mediaRoot: widget.mediaRoot,
+      host: widget.parsed.host,
+      language: widget.parsed.language,
+      gameId: widget.parsed.gameId,
+      trackId: widget.parsed.trackId,
+    );
 
     if (!mounted) return;
 
     if (file == null) {
       setState(() {
-        _error = 'Track nicht gefunden.\n\n'
-            'Gesucht in:\n'
-            '${widget.mediaRoot}/${widget.gameId}/\n\n'
-            'Dateiname muss mit\n"${widget.trackNumber}" beginnen.';
+        _error = 'Track not found.\n\n'
+            'Searched in:\n'
+            '${widget.mediaRoot}/${widget.parsed.host}/${widget.parsed.language}/${widget.parsed.gameId}_*/\n\n'
+            'Filename must start with\n"${widget.parsed.trackId}".';
         _loading = false;
       });
       return;
     }
 
     final folderName = p.basename(file.parent.path);
-      final underscoreIdx = folderName.indexOf('_');
-      setState(() {
+    final underscoreIdx = folderName.indexOf('_');
+
+    setState(() {
       _file = file;
       _loading = false;
-      _packName = underscoreIdx != -1
-        ? folderName.substring(underscoreIdx + 1)
-        : folderName;
-      });
+      _gameName = underscoreIdx != -1
+          ? folderName.substring(underscoreIdx + 1)
+          : folderName;
+    });
     await _player.play(DeviceFileSource(file.path));
   }
 
@@ -452,10 +458,10 @@ class _PlayerPageState extends State<PlayerPage> {
       MaterialPageRoute(builder: (_) => const ScannerPage()),
     );
     if (result != null && mounted) {
-      final parsed = parseHitsterUrl(result);
+      final parsed = parseUrl(result);
       if (parsed == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Ungültige Hitster-URL')),
+          const SnackBar(content: Text('Invalid URL format')),
         );
         return;
       }
@@ -463,8 +469,7 @@ class _PlayerPageState extends State<PlayerPage> {
         context,
         MaterialPageRoute(
           builder: (_) => PlayerPage(
-            gameId: parsed.gameId,
-            trackNumber: parsed.trackNumber,
+            parsed: parsed,
             mediaRoot: widget.mediaRoot,
             ),
           ),
@@ -473,11 +478,9 @@ class _PlayerPageState extends State<PlayerPage> {
     }
 
   Future<bool> _ensurePermission() async {
-    // Android 11+ (API 30+): MANAGE_EXTERNAL_STORAGE
     if (await Permission.manageExternalStorage.isGranted) return true;
     final r = await Permission.manageExternalStorage.request();
     if (r.isGranted) return true;
-    // Fallback Android 9/10
     return (await Permission.storage.request()).isGranted;
   }
 
@@ -486,39 +489,32 @@ class _PlayerPageState extends State<PlayerPage> {
       await _player.pause();
       return;
     }
-
     if (_file == null) return;
-
     if (_completed) {
       await _player.play(DeviceFileSource(_file!.path));
       return;
     }
-
     await _player.resume();
   }
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final trackDisplay = int.tryParse(widget.parsed.trackId.toString()) ?? widget.parsed.trackId;
+
     return Scaffold(
-      /* appBar: AppBar(
-        backgroundColor: cs.inversePrimary,
-        title: Text('# ${int.tryParse(widget.trackNumber.toString()) ?? widget.trackNumber}  ·  ${_packName ?? widget.gameId}'),
-      ),*/
       appBar: AppBar(
         backgroundColor: cs.inversePrimary,
         title: Row(
           children: [            
-            // Der bewegliche Teil (Laufschrift)
             Expanded(
               child: SizedBox(
                 height: 24,
                 child: Marquee(
-                  text: '#${int.tryParse(widget.trackNumber.toString()) ?? widget.trackNumber}  ·  ${_packName ?? widget.gameId}',
-                  // Hier holen wir uns den exakten Stil, den die AppBar sonst auch nutzen würde:
+                  text: '#$trackDisplay  ·  ${_gameName ?? widget.parsed.gameId}',
                   style: Theme.of(context).appBarTheme.titleTextStyle ?? 
                         Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.normal, // Verhindert, dass es fett ist
+                          fontWeight: FontWeight.normal,
                         ),
                   scrollAxis: Axis.horizontal,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -579,42 +575,13 @@ class _PlayerPageState extends State<PlayerPage> {
     final maxMs = _dur.inMilliseconds.toDouble();
     final curMs =
         _pos.inMilliseconds.toDouble().clamp(0.0, maxMs > 0 ? maxMs : 1.0);
+    final trackDisplay = int.tryParse(widget.parsed.trackId.toString()) ?? widget.parsed.trackId;
 
     return Column(
-      /*
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        // Cover-Platzhalter
-        Container(
-          width: 200,
-          height: 200,
-          decoration: BoxDecoration(
-            color: cs.primaryContainer,
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: [
-              BoxShadow(
-                color: cs.primary.withValues(alpha: 0.25),
-                blurRadius: 24,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: Icon(
-            _playing ? Icons.music_note_rounded : Icons.music_note,
-            size: 80,
-            color: cs.onPrimaryContainer,
-          ),
-        ),
-        */
-
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        // Cover-Platzhalter (Jetzt klickbar!)
         GestureDetector(
-          onTap: () {
-            // Hier kommt deine Funktion rein, z.B.:
-            _scanAndPlay();
-          },
+          onTap: _scanAndPlay,
           child: Container(
             width: 200,
             height: 200,
@@ -645,7 +612,7 @@ class _PlayerPageState extends State<PlayerPage> {
                 .bodySmall
                 ?.copyWith(color: Colors.grey)),
         Text(
-          _packName ?? widget.gameId,
+          _gameName ?? widget.parsed.gameId,
           style: Theme.of(context)
               .textTheme
               .titleLarge
@@ -653,7 +620,7 @@ class _PlayerPageState extends State<PlayerPage> {
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 4),
-        Text('Track #${int.tryParse(widget.trackNumber.toString()) ?? widget.trackNumber}',
+        Text('Track #$trackDisplay',
             style: Theme.of(context)
                 .textTheme
                 .bodyMedium
@@ -674,7 +641,6 @@ class _PlayerPageState extends State<PlayerPage> {
 
         const SizedBox(height: 32),
 
-        // Fortschrittsbalken
         Slider(
           value: curMs,
           max: maxMs > 0 ? maxMs : 1.0,
@@ -697,7 +663,6 @@ class _PlayerPageState extends State<PlayerPage> {
 
         const SizedBox(height: 24),
 
-        // Play / Pause
         FilledButton(
           onPressed: _togglePlayPause,
           style: FilledButton.styleFrom(
@@ -746,17 +711,16 @@ class _SettingsPageState extends State<SettingsPage> {
     if (mounted) {
       setState(() {});
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Gespeichert ✓')),
+        const SnackBar(content: Text('Saved ✓')),
       );
     }
   }
 
-   // _pickDir ersetzen:
   Future<void> _pickDir() async {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text(
-          'Bitte Pfad manuell eingeben, z.B.: /storage/emulated/0/Music/Hitster',
+          'Please enter path manually, e.g.: /storage/emulated/0/Music/Jukebox',
        ),
         duration: Duration(seconds: 4),
       ),
@@ -769,12 +733,12 @@ class _SettingsPageState extends State<SettingsPage> {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: cs.inversePrimary,
-        title: const Text('Einstellungen'),
+        title: const Text('Settings'),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Text('Medienordner',
+          Text('Media Folder',
               style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
           Row(
@@ -784,10 +748,10 @@ class _SettingsPageState extends State<SettingsPage> {
                 child: TextField(
                   controller: _pathCtrl,
                   decoration: const InputDecoration(
-                    labelText: 'Pfad',
-                    hintText: '/storage/emulated/0/Music/Hitster',
+                    labelText: 'Path',
+                    hintText: '/storage/emulated/0/Music/Jukebox',
                     border: OutlineInputBorder(),
-                    helperText: 'Ordner, der die GameID-Unterordner enthält',
+                    helperText: 'Folder containing <host>/<language>/<gameId>_*/',
                   ),
                   onSubmitted: _save,
                 ),
@@ -798,7 +762,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 child: IconButton.filled(
                   icon: const Icon(Icons.folder_open),
                   onPressed: _pickDir,
-                  tooltip: 'Ordner wählen',
+                  tooltip: 'Choose Folder',
                 ),
               ),
             ],
@@ -809,7 +773,7 @@ class _SettingsPageState extends State<SettingsPage> {
             child: FilledButton.icon(
               onPressed: () => _save(_pathCtrl.text),
               icon: const Icon(Icons.save),
-              label: const Text('Speichern'),
+              label: const Text('Save'),
             ),
           ),
 
@@ -817,7 +781,7 @@ class _SettingsPageState extends State<SettingsPage> {
           const Divider(),
           const SizedBox(height: 16),
 
-          Text('Erwartete Ordnerstruktur',
+          Text('Expected Folder Structure',
               style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
           Container(
@@ -827,12 +791,12 @@ class _SettingsPageState extends State<SettingsPage> {
               borderRadius: BorderRadius.circular(8),
             ),
             child: const Text(
-              '<Medienordner>/\n'
-              '├── aaaa0015_Superhits/\n'
-              '│   ├── 00094_Song Title.mp3\n'
-              '│   └── 00095_Another Song.mp3\n'
-              '└── bbbb0023_SomeOtherFolder/\n'
-              '    └── 00001_Third Song.mp3',
+              '<Media Folder>/\n'
+              '└── example.com/\n'
+              '    └── de/\n'
+              '        └── aaaa0015_Superhits/\n'
+              '            ├── 00015_Song Title.mp3\n'
+              '            └── 00016_Another Song.mp3',
               style: TextStyle(fontFamily: 'monospace', fontSize: 12),
             ),
           ),

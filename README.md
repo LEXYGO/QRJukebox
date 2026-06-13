@@ -1,17 +1,31 @@
-# bttr_hitster
+# QR Jukebox
 
-A new Flutter project.
+A generic offline QR-based audio player.
 
-## Getting Started
+## How it works
 
-This project is a starting point for a Flutter application.
+The app maps a QR Code URL to a local audio file.
 
-A few resources to get you started if this is your first Flutter project:
+**Expected QR format:**
+`https://<host>/<language>/<gameId>/<trackId>`
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+Example:
+`https://example.com/de/aaaa0015/00015`
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Folder Structure
+
+The app expects your media to be organized as follows:
+
+```
+<Media Root>/
+└── <host>/
+    └── <language>/
+        └── <gameId>_<Optional Game Name>/
+            ├── <trackId>_<Optional Track Name>.mp3
+            └── <trackId>_<Another Track>.m4a
+```
+
+- `host`: The domain from the QR code (e.g., `example.com`).
+- `language`: The first path segment (e.g., `de`).
+- `gameId`: The second path segment. The folder name must *start* with this ID.
+- `trackId`: The third path segment. The file name must *start* with this ID.

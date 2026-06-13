@@ -1,4 +1,4 @@
-package com.lennardhanss.bttrhitster
+package com.lennardhanss.qrjukebox
 
 import io.flutter.embedding.android.FlutterActivity
 
