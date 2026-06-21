@@ -25,7 +25,7 @@ The app expects your media to be organized as follows:
             └── <trackId>_<Another Track>.m4a
 ```
 
-- `host`: The domain from the QR code (e.g., `example.com`).
+- `host`: The domain from the QR code (e.g., `www.example.com`).
 - `language`: The first path segment (e.g., `de`).
 - `gameId`: The second path segment. The folder name must *start* with this ID.
 - `trackId`: The third path segment. The file name must *start* with this ID.

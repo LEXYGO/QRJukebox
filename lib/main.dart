@@ -8,6 +8,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:path/path.dart' as p;
 import 'package:marquee/marquee.dart';
 import 'package:audiotags/audiotags.dart';
+import 'package:file_picker/file_picker.dart';
 
 // ─── Entry Point ───────────────────────────────────────────────────────────
 
@@ -815,14 +816,22 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _pickDir() async {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Please enter path manually, e.g.: /storage/emulated/0/Music/Jukebox',
-       ),
-        duration: Duration(seconds: 4),
-      ),
-    );
+    try {
+      String? selectedDirectory = await FilePicker.platform.getDirectoryPath();
+
+      if (selectedDirectory != null) {
+        setState(() {
+          _pathCtrl.text = selectedDirectory;
+        });
+        await _save(selectedDirectory);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error picking folder: $e')),
+        );
+      }
+    }
   }
 
   @override
