@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:audioplayers/audioplayers.dart';
@@ -6,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path/path.dart' as p;
 import 'package:marquee/marquee.dart';
+import 'package:audiotags/audiotags.dart';
 
 // ─── Entry Point ───────────────────────────────────────────────────────────
 
@@ -359,11 +361,13 @@ class _PlayerPageState extends State<PlayerPage> {
   final _player = AudioPlayer();
 
   File? _file;
+  Tag? _tags;
   bool _loading = true;
   bool _completed = false;
   String? _error;
   String? _gameName;
   bool _playing = false;
+  bool _showCover = false;
   Duration _pos = Duration.zero;
   Duration _dur = Duration.zero;
 
@@ -442,9 +446,15 @@ class _PlayerPageState extends State<PlayerPage> {
     final folderName = p.basename(file.parent.path);
     final underscoreIdx = folderName.indexOf('_');
 
+    Tag? tags;
+    try {
+      tags = await AudioTags.read(file.path);
+    } catch (_) {}
+
     setState(() {
       _file = file;
       _loading = false;
+      _tags = tags;
       _gameName = underscoreIdx != -1
           ? folderName.substring(underscoreIdx + 1)
           : folderName;
@@ -497,6 +507,72 @@ class _PlayerPageState extends State<PlayerPage> {
     await _player.resume();
   }
 
+  String _formatBytes(int bytes, int decimals) {
+    if (bytes <= 0) return "0 B";
+    const suffixes = ["B", "KB", "MB", "GB", "TB"];
+    var i = (log(bytes) / log(1024)).floor();
+    return ((bytes / pow(1024, i)).toStringAsFixed(decimals)) + ' ' + suffixes[i];
+  }
+
+  void _showInfoDialog() {
+    if (_file == null) return;
+
+    final size = _file!.lengthSync();
+    final sizeStr = _formatBytes(size, 2);
+    final trackDisplay =
+        int.tryParse(widget.parsed.trackId.toString()) ?? widget.parsed.trackId;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Track Information'),
+        content: SingleChildScrollView(
+          child: ListBody(
+            children: [
+              _infoRow('Track #', trackDisplay.toString()),
+              _infoRow('Game Set', _gameName ?? widget.parsed.gameId),
+              if (_tags?.title != null && _tags!.title!.isNotEmpty)
+                _infoRow('Title', _tags!.title!),
+              if (_tags?.trackArtist != null && _tags!.trackArtist!.isNotEmpty)
+                _infoRow('Artist', _tags!.trackArtist!),
+              if (_tags?.album != null && _tags!.album!.isNotEmpty)
+                _infoRow('Album', _tags!.album!),
+              if (_tags?.year != null)
+                _infoRow('Year', _tags!.year!.toString()),
+              _infoRow('File Size', sizeStr),
+              _infoRow('File Name', p.basename(_file!.path)),
+              _infoRow('Full Path', _file!.path),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _infoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                  color: Theme.of(context).colorScheme.primary)),
+          const SizedBox(height: 2),
+          SelectableText(value, style: const TextStyle(fontSize: 14)),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -531,6 +607,13 @@ class _PlayerPageState extends State<PlayerPage> {
             ),
           ],
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.info_outline),
+            onPressed: _showInfoDialog,
+            tooltip: 'Track Info',
+          ),
+        ],
       ),
 
       body: SafeArea(
@@ -576,12 +659,16 @@ class _PlayerPageState extends State<PlayerPage> {
     final curMs =
         _pos.inMilliseconds.toDouble().clamp(0.0, maxMs > 0 ? maxMs : 1.0);
     final trackDisplay = int.tryParse(widget.parsed.trackId.toString()) ?? widget.parsed.trackId;
+    final hasCover = _tags?.pictures.isNotEmpty == true;
 
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         GestureDetector(
           onTap: _scanAndPlay,
+          onLongPressStart: hasCover ? (_) => setState(() => _showCover = true) : null,
+          onLongPressEnd: (_) => setState(() => _showCover = false),
+          onLongPressCancel: () => setState(() => _showCover = false),
           child: Container(
             width: 200,
             height: 200,
@@ -595,16 +682,40 @@ class _PlayerPageState extends State<PlayerPage> {
                   offset: const Offset(0, 8),
                 ),
               ],
+              image: (_showCover && hasCover)
+                  ? DecorationImage(
+                      image: MemoryImage(_tags!.pictures.first.bytes),
+                      fit: BoxFit.cover,
+                    )
+                  : null,
             ),
-            child: Icon(
-              _playing ? Icons.music_note_rounded : Icons.music_note,
-              size: 80,
-              color: cs.onPrimaryContainer,
-            ),
+            child: (_showCover && hasCover)
+                ? null
+                : Icon(
+                    _playing ? Icons.music_note_rounded : Icons.music_note,
+                    size: 80,
+                    color: cs.onPrimaryContainer,
+                  ),
           ),
         ),
+        const SizedBox(height: 8),
+        Text(
+          'Klick to scan again',
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: cs.primary.withValues(alpha: 0.5),
+          ),
+        ),
+        if (hasCover) ...[
+          const SizedBox(height: 2),
+          Text(
+            'Hold to peek cover',
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: cs.primary.withValues(alpha: 0.5),
+                ),
+          ),
+        ],
 
-        const SizedBox(height: 32),
+        const SizedBox(height: 24),
 
         Text('Game Pack',
             style: Theme.of(context)
@@ -625,21 +736,8 @@ class _PlayerPageState extends State<PlayerPage> {
                 .textTheme
                 .bodyMedium
                 ?.copyWith(color: const Color.fromARGB(255, 158, 158, 158))),
-        if (_file != null) ...[
-          const SizedBox(height: 4),
-          Text(
-            p.basename(_file!.path),
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Colors.grey.shade400,
-                  fontStyle: FontStyle.italic,
-                ),
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
 
-        const SizedBox(height: 32),
+        const SizedBox(height: 16),
 
         Slider(
           value: curMs,

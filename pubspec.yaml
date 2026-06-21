@@ -36,6 +36,7 @@ dependencies:
   permission_handler: ^11.3.1   # ← neu: Speicher-Permissions
   path: ^1.9.0                   # ← neu: Pfad-Hilfsfunktionen
   marquee: ^2.2.3              # ← neu: Lauftext für lange Titel
+  audiotags: ^1.4.5            # ← neu: Audio-Metadaten lesen
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
