@@ -92,7 +92,7 @@ Future<File?> findTrackFile({
   await for (final entity in gameDir.list()) {
     if (entity is! File) continue;
     final ext = p.extension(entity.path).toLowerCase();
-    if (ext != '.mp3' && ext != '.m4a' && ext != '.wav') continue;
+    if (ext != '.mp3' && ext != '.m4a' && ext != '.wav' && ext != '.flac') continue;
     
     final name = p.basenameWithoutExtension(entity.path);
     if (name.startsWith(trackId)) return entity;
