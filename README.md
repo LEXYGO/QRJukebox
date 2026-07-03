@@ -55,6 +55,7 @@ This project is built with [Flutter](https://flutter.dev) and powered by these a
 - **[marquee](https://pub.dev/packages/marquee)** - Smooth scrolling for long titles.
 - **[path](https://pub.dev/packages/path)** - Cross-platform path manipulation.
 - **[permission_handler](https://pub.dev/packages/permission_handler)** - Managing Android storage permissions.
+- **[wakelock_plus](https://pub.dev/packages/wakelock_plus)** - Prevents the device from sleeping while playing.
 
 ## ⚖️ License
 
