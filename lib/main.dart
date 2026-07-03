@@ -9,12 +9,17 @@ import 'package:path/path.dart' as p;
 import 'package:marquee/marquee.dart';
 import 'package:audiotags/audiotags.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 // ─── Entry Point ───────────────────────────────────────────────────────────
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
+  
+  final keepAwake = prefs.getBool('keepAwake') ?? true;
+  WakelockPlus.toggle(enable: keepAwake);
+  
   runApp(QRJukeboxApp(prefs: prefs));
 }
 
@@ -701,7 +706,7 @@ class _PlayerPageState extends State<PlayerPage> {
         ),
         const SizedBox(height: 8),
         Text(
-          'Klick to scan again',
+          'Click to scan again',
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
             color: cs.primary.withValues(alpha: 0.5),
           ),
@@ -815,6 +820,12 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  Future<void> _toggleKeepAwake(bool value) async {
+    await widget.prefs.setBool('keepAwake', value);
+    WakelockPlus.toggle(enable: value);
+    if (mounted) setState(() {});
+  }
+
   Future<void> _pickDir() async {
     try {
       String? selectedDirectory = await FilePicker.platform.getDirectoryPath();
@@ -845,6 +856,22 @@ class _SettingsPageState extends State<SettingsPage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          Text('Device Settings',
+              style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          SwitchListTile(
+            title: const Text('Keep Screen Awake'),
+            subtitle: const Text('Prevent device from sleeping while using the app'),
+            value: widget.prefs.getBool('keepAwake') ?? true,
+            onChanged: _toggleKeepAwake,
+            secondary: const Icon(Icons.lightbulb_outline),
+            contentPadding: EdgeInsets.zero,
+          ),
+
+          const SizedBox(height: 28),
+          const Divider(),
+          const SizedBox(height: 16),
+
           Text('Media Folder',
               style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
@@ -884,9 +911,7 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
           ),
 
-          const SizedBox(height: 28),
-          const Divider(),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
 
           Text('Expected Folder Structure',
               style: Theme.of(context).textTheme.titleMedium),
