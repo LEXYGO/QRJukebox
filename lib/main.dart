@@ -46,66 +46,79 @@ class QRJukeboxApp extends StatelessWidget {
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
-/// Parses a URL into its components: host, language, gameId, trackId.
-/// Expected format: https://<host>/<language>/<gameId>/<trackId>
-({String host, String language, String gameId, String trackId})? parseUrl(String raw) {
+/// Parses a URL into its components: host, folders, trackId.
+/// The last segment is always the trackId, segments before are folders.
+({String host, List<String> folders, String trackId})? parseUrl(String raw) {
   try {
     final url = raw.startsWith('http') ? raw : 'https://$raw';
     final uri = Uri.parse(url);
     final host = uri.host;
     final segs = uri.pathSegments.where((s) => s.isNotEmpty).toList();
-    if (host.isNotEmpty && segs.length >= 3) {
+    
+    if (host.isNotEmpty && segs.length >= 2) {
       return (
         host: host,
-        language: segs[0],
-        gameId: segs[1],
-        trackId: segs[2],
+        folders: segs.sublist(0, segs.length - 1),
+        trackId: segs.last,
       );
     }
   } catch (_) {}
   return null;
 }
 
-/// Resolves the local audio file based on the new folder rules:
-/// /root/<host>/<language>/<gameId>_*/<trackId>_*.<ext>
+/// Resolves the local audio file by traversing the folder structure.
 Future<File?> findTrackFile({
   required String mediaRoot,
   required String host,
-  required String language,
-  required String gameId,
+  required List<String> folders,
   required String trackId,
 }) async {
   final baseDir = Directory(mediaRoot);
   if (!await baseDir.exists()) return null;
 
   // 1. Host folder
-  final hostDir = Directory(p.join(mediaRoot, host));
-  if (!await hostDir.exists()) return null;
-
-  // 2. Language folder
-  final langDir = Directory(p.join(hostDir.path, language));
-  if (!await langDir.exists()) return null;
-
-  // 3. Game folder (prefix match gameId)
-  Directory? gameDir;
-  await for (final entity in langDir.list()) {
-    if (entity is Directory && p.basename(entity.path).startsWith(gameId)) {
-      gameDir = entity;
-      break;
+  Directory? currentDir;
+  await for (final entity in baseDir.list()) {
+    if (entity is Directory) {
+      final name = p.basename(entity.path).toLowerCase();
+      if (name == host.toLowerCase() || name.startsWith('${host.toLowerCase()}_')) {
+        currentDir = entity;
+        break;
+      }
     }
   }
-  if (gameDir == null) return null;
+  if (currentDir == null) return null;
 
-  // 4. Track file (prefix match trackId)
-  await for (final entity in gameDir.list()) {
+  // 2. Traverse folders (e.g. ['de', 'aaaa0015'])
+  for (final segment in folders) {
+    Directory? nextDir;
+    final search = segment.toLowerCase();
+    await for (final entity in currentDir!.list()) {
+      if (entity is Directory) {
+        final name = p.basename(entity.path).toLowerCase();
+        // Match exact or "segment_something"
+        if (name == search || name.startsWith('${search}_')) {
+          nextDir = entity;
+          break;
+        }
+      }
+    }
+    if (nextDir == null) return null;
+    currentDir = nextDir;
+  }
+
+  // 3. Find track file in the final directory
+  await for (final entity in currentDir!.list()) {
     if (entity is! File) continue;
     final ext = p.extension(entity.path).toLowerCase();
-    if (ext != '.mp3' && ext != '.m4a' && ext != '.wav' && ext != '.flac') continue;
+    if (!['.mp3', '.m4a', '.wav', '.flac'].contains(ext)) continue;
     
-    final name = p.basenameWithoutExtension(entity.path);
-    if (name.startsWith(trackId)) return entity;
+    final name = p.basenameWithoutExtension(entity.path).toLowerCase();
+    if (name == trackId.toLowerCase() || name.startsWith('${trackId.toLowerCase()}_')) {
+      return entity;
+    }
   }
-  
+
   return null;
 }
 
@@ -350,7 +363,7 @@ class _ScannerPageState extends State<ScannerPage> {
 // ─── Player Page ───────────────────────────────────────────────────────────
 
 class PlayerPage extends StatefulWidget {
-  final ({String host, String language, String gameId, String trackId}) parsed;
+  final ({String host, List<String> folders, String trackId}) parsed;
   final String mediaRoot;
 
   const PlayerPage({
@@ -431,18 +444,18 @@ class _PlayerPageState extends State<PlayerPage> {
     final file = await findTrackFile(
       mediaRoot: widget.mediaRoot,
       host: widget.parsed.host,
-      language: widget.parsed.language,
-      gameId: widget.parsed.gameId,
+      folders: widget.parsed.folders,
       trackId: widget.parsed.trackId,
     );
 
     if (!mounted) return;
 
     if (file == null) {
+      final fullPath = [widget.parsed.host, ...widget.parsed.folders].join('/');
       setState(() {
         _error = 'Track not found.\n\n'
             'Searched in:\n'
-            '${widget.mediaRoot}/${widget.parsed.host}/${widget.parsed.language}/${widget.parsed.gameId}_*/\n\n'
+            '${widget.mediaRoot}/$fullPath/\n\n'
             'Filename must start with\n"${widget.parsed.trackId}".';
         _loading = false;
       });
@@ -536,7 +549,7 @@ class _PlayerPageState extends State<PlayerPage> {
           child: ListBody(
             children: [
               _infoRow('Track #', trackDisplay.toString()),
-              _infoRow('Game Set', _gameName ?? widget.parsed.gameId),
+              _infoRow('Game Set', _gameName ?? (widget.parsed.folders.isNotEmpty ? widget.parsed.folders.last : 'Root')),
               if (_tags?.title != null && _tags!.title!.isNotEmpty)
                 _infoRow('Title', _tags!.title!),
               if (_tags?.trackArtist != null && _tags!.trackArtist!.isNotEmpty)
@@ -593,7 +606,7 @@ class _PlayerPageState extends State<PlayerPage> {
               child: SizedBox(
                 height: 24,
                 child: Marquee(
-                  text: '#$trackDisplay  ·  ${_gameName ?? widget.parsed.gameId}',
+                  text: '#$trackDisplay  ·  ${_gameName ?? (widget.parsed.folders.isNotEmpty ? widget.parsed.folders.last : 'Root')}',
                   style: Theme.of(context).appBarTheme.titleTextStyle ?? 
                         Theme.of(context).textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.normal,
@@ -729,7 +742,7 @@ class _PlayerPageState extends State<PlayerPage> {
                 .bodySmall
                 ?.copyWith(color: Colors.grey)),
         Text(
-          _gameName ?? widget.parsed.gameId,
+          _gameName ?? (widget.parsed.folders.isNotEmpty ? widget.parsed.folders.last : 'Root'),
           style: Theme.of(context)
               .textTheme
               .titleLarge
