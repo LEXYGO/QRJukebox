@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'dart:math';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -10,11 +12,18 @@ import 'package:marquee/marquee.dart';
 import 'package:audiotags/audiotags.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 // ─── Entry Point ───────────────────────────────────────────────────────────
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Lock orientation to portrait
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+  ]);
+
   final prefs = await SharedPreferences.getInstance();
   
   final keepAwake = prefs.getBool('keepAwake') ?? true;
@@ -33,6 +42,7 @@ class QRJukeboxApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'QR Jukebox',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF2200FF),
@@ -165,6 +175,7 @@ class _HomePageState extends State<HomePage> {
         builder: (_) => PlayerPage(
           parsed: parsed,
           mediaRoot: _mediaRoot,
+          prefs: widget.prefs,
         ),
       ),
     );
@@ -365,11 +376,13 @@ class _ScannerPageState extends State<ScannerPage> {
 class PlayerPage extends StatefulWidget {
   final ({String host, List<String> folders, String trackId}) parsed;
   final String mediaRoot;
+  final SharedPreferences prefs;
 
   const PlayerPage({
     super.key,
     required this.parsed,
     required this.mediaRoot,
+    required this.prefs,
   });
 
   @override
@@ -386,13 +399,14 @@ class _PlayerPageState extends State<PlayerPage> {
   String? _error;
   String? _gameName;
   bool _playing = false;
-  bool _showCover = false;
   Duration _pos = Duration.zero;
   Duration _dur = Duration.zero;
+  final Stopwatch _stopwatch = Stopwatch();
 
   @override
   void initState() {
     super.initState();
+    _stopwatch.start();
     _player.onPlayerStateChanged.listen((s) {
       if (mounted) {
         setState(() {
@@ -478,7 +492,17 @@ class _PlayerPageState extends State<PlayerPage> {
           ? folderName.substring(underscoreIdx + 1)
           : folderName;
     });
-    await _player.play(DeviceFileSource(file.path));
+
+    final startOffset = widget.prefs.getInt('playbackStartOffset') ?? 0;
+    await _player.play(
+      DeviceFileSource(file.path),
+      position: Duration(seconds: startOffset),
+    );
+  }
+
+  Future<void> _seekRelative(int seconds) async {
+    final newPos = _pos + Duration(seconds: seconds);
+    await _player.seek(newPos < Duration.zero ? Duration.zero : newPos);
   }
 
   Future<void> _scanAndPlay() async {
@@ -500,6 +524,7 @@ class _PlayerPageState extends State<PlayerPage> {
           builder: (_) => PlayerPage(
             parsed: parsed,
             mediaRoot: widget.mediaRoot,
+            prefs: widget.prefs,
             ),
           ),
         );
@@ -530,7 +555,7 @@ class _PlayerPageState extends State<PlayerPage> {
     if (bytes <= 0) return "0 B";
     const suffixes = ["B", "KB", "MB", "GB", "TB"];
     var i = (log(bytes) / log(1024)).floor();
-    return ((bytes / pow(1024, i)).toStringAsFixed(decimals)) + ' ' + suffixes[i];
+    return '${(bytes / pow(1024, i)).toStringAsFixed(decimals)} ${suffixes[i]}';
   }
 
   void _showInfoDialog() {
@@ -540,6 +565,7 @@ class _PlayerPageState extends State<PlayerPage> {
     final sizeStr = _formatBytes(size, 2);
     final trackDisplay =
         int.tryParse(widget.parsed.trackId.toString()) ?? widget.parsed.trackId;
+    final hasCover = _tags?.pictures.isNotEmpty == true;
 
     showDialog(
       context: context,
@@ -548,6 +574,30 @@ class _PlayerPageState extends State<PlayerPage> {
         content: SingleChildScrollView(
           child: ListBody(
             children: [
+              if (hasCover)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => FullscreenCover(
+                            imageBytes: _tags!.pictures.first.bytes,
+                          ),
+                        ),
+                      );
+                    },
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.memory(
+                        _tags!.pictures.first.bytes,
+                        height: 150,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                ),
               _infoRow('Track #', trackDisplay.toString()),
               _infoRow('Game Set', _gameName ?? (widget.parsed.folders.isNotEmpty ? widget.parsed.folders.last : 'Root')),
               if (_tags?.title != null && _tags!.title!.isNotEmpty)
@@ -678,16 +728,12 @@ class _PlayerPageState extends State<PlayerPage> {
     final curMs =
         _pos.inMilliseconds.toDouble().clamp(0.0, maxMs > 0 ? maxMs : 1.0);
     final trackDisplay = int.tryParse(widget.parsed.trackId.toString()) ?? widget.parsed.trackId;
-    final hasCover = _tags?.pictures.isNotEmpty == true;
 
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         GestureDetector(
           onTap: _scanAndPlay,
-          onLongPressStart: hasCover ? (_) => setState(() => _showCover = true) : null,
-          onLongPressEnd: (_) => setState(() => _showCover = false),
-          onLongPressCancel: () => setState(() => _showCover = false),
           child: Container(
             width: 200,
             height: 200,
@@ -701,20 +747,12 @@ class _PlayerPageState extends State<PlayerPage> {
                   offset: const Offset(0, 8),
                 ),
               ],
-              image: (_showCover && hasCover)
-                  ? DecorationImage(
-                      image: MemoryImage(_tags!.pictures.first.bytes),
-                      fit: BoxFit.cover,
-                    )
-                  : null,
             ),
-            child: (_showCover && hasCover)
-                ? null
-                : Icon(
-                    _playing ? Icons.music_note_rounded : Icons.music_note,
-                    size: 80,
-                    color: cs.onPrimaryContainer,
-                  ),
+            child: Icon(
+              _playing ? Icons.music_note_rounded : Icons.music_note,
+              size: 80,
+              color: cs.onPrimaryContainer,
+            ),
           ),
         ),
         const SizedBox(height: 8),
@@ -724,15 +762,6 @@ class _PlayerPageState extends State<PlayerPage> {
             color: cs.primary.withValues(alpha: 0.5),
           ),
         ),
-        if (hasCover) ...[
-          const SizedBox(height: 2),
-          Text(
-            'Hold to peek cover',
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: cs.primary.withValues(alpha: 0.5),
-                ),
-          ),
-        ],
 
         const SizedBox(height: 24),
 
@@ -780,18 +809,101 @@ class _PlayerPageState extends State<PlayerPage> {
 
         const SizedBox(height: 24),
 
-        FilledButton(
-          onPressed: _togglePlayPause,
-          style: FilledButton.styleFrom(
-            shape: const CircleBorder(),
-            padding: const EdgeInsets.all(24),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.replay_10_rounded),
+              onPressed: () => _seekRelative(-10),
+              iconSize: 32,
+              color: cs.primary,
+            ),
+            const SizedBox(width: 16),
+            FilledButton(
+              onPressed: _togglePlayPause,
+              style: FilledButton.styleFrom(
+                shape: const CircleBorder(),
+                padding: const EdgeInsets.all(24),
+              ),
+              child: Icon(
+                _playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                size: 48,
+              ),
+            ),
+            const SizedBox(width: 16),
+            IconButton(
+              icon: const Icon(Icons.forward_10_rounded),
+              onPressed: () => _seekRelative(10),
+              iconSize: 32,
+              color: cs.primary,
+            ),
+          ],
+        ),
+
+        if (widget.prefs.getBool('showStopwatch') ?? false) ...[
+          const SizedBox(height: 32),
+          StreamBuilder(
+            stream: Stream.periodic(const Duration(seconds: 1)),
+            builder: (context, _) {
+              final elapsed = _stopwatch.elapsed;
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: cs.secondaryContainer,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.timer_outlined, size: 18, color: cs.onSecondaryContainer),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Spent time: ${_fmt(elapsed)}',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: cs.onSecondaryContainer,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
-          child: Icon(
-            _playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
-            size: 48,
-          ),
-        ),      
+        ],
       ],
+    );
+  }
+}
+
+class FullscreenCover extends StatelessWidget {
+  final List<int> imageBytes;
+  const FullscreenCover({super.key, required this.imageBytes});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: GestureDetector(
+        onTap: () => Navigator.pop(context),
+        child: Center(
+          child: Hero(
+            tag: 'cover',
+            child: Image.memory(
+              Uint8List.fromList(imageBytes),
+              fit: BoxFit.contain,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -808,6 +920,7 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   late final TextEditingController _pathCtrl;
+  late final TextEditingController _offsetCtrl;
 
   @override
   void initState() {
@@ -815,22 +928,32 @@ class _SettingsPageState extends State<SettingsPage> {
     _pathCtrl = TextEditingController(
       text: widget.prefs.getString('mediaRootPath') ?? '',
     );
+    _offsetCtrl = TextEditingController(
+      text: (widget.prefs.getInt('playbackStartOffset') ?? 0).toString(),
+    );
   }
 
   @override
   void dispose() {
     _pathCtrl.dispose();
+    _offsetCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _save(String path) async {
+  Future<void> _savePath(String path) async {
     await widget.prefs.setString('mediaRootPath', path.trim());
-    if (mounted) {
-      setState(() {});
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Saved ✓')),
-      );
-    }
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _saveOffset(String value) async {
+    final offset = int.tryParse(value) ?? 0;
+    await widget.prefs.setInt('playbackStartOffset', offset);
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _toggleStopwatch(bool value) async {
+    await widget.prefs.setBool('showStopwatch', value);
+    if (mounted) setState(() {});
   }
 
   Future<void> _toggleKeepAwake(bool value) async {
@@ -847,7 +970,7 @@ class _SettingsPageState extends State<SettingsPage> {
         setState(() {
           _pathCtrl.text = selectedDirectory;
         });
-        await _save(selectedDirectory);
+        await _savePath(selectedDirectory);
       }
     } catch (e) {
       if (mounted) {
@@ -880,6 +1003,32 @@ class _SettingsPageState extends State<SettingsPage> {
             secondary: const Icon(Icons.lightbulb_outline),
             contentPadding: EdgeInsets.zero,
           ),
+          const SizedBox(height: 28),
+          const Divider(),
+          const SizedBox(height: 16),
+          Text('Playback Settings',
+              style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          SwitchListTile(
+            title: const Text('Show Stopwatch'),
+            subtitle: const Text('Track time spent on each card'),
+            value: widget.prefs.getBool('showStopwatch') ?? false,
+            onChanged: _toggleStopwatch,
+            secondary: const Icon(Icons.timer_outlined),
+            contentPadding: EdgeInsets.zero,
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _offsetCtrl,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: 'Playback Start Offset (seconds)',
+              hintText: 'e.g. 30',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.fast_forward_outlined),
+            ),
+            onChanged: _saveOffset,
+          ),
 
           const SizedBox(height: 28),
           const Divider(),
@@ -900,7 +1049,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     border: OutlineInputBorder(),
                     helperText: 'Folder containing <host>/<language>/<gameId>_*/',
                   ),
-                  onSubmitted: _save,
+                  onSubmitted: _savePath,
                 ),
               ),
               const SizedBox(width: 8),
@@ -918,9 +1067,9 @@ class _SettingsPageState extends State<SettingsPage> {
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
-              onPressed: () => _save(_pathCtrl.text),
+              onPressed: () => _savePath(_pathCtrl.text),
               icon: const Icon(Icons.save),
-              label: const Text('Save'),
+              label: const Text('Save Path'),
             ),
           ),
 
@@ -938,11 +1087,56 @@ class _SettingsPageState extends State<SettingsPage> {
             child: const Text(
               '<Media Folder>/\n'
               '└── example.com/\n'
-              '    └── de/\n'
-              '        └── aaaa0015_Superhits/\n'
+              '    └── de_original-game-edition/\n'
+              '        ├── 00015_Song Title.mp3\n'
+              '        ├── 00016_Another Song.mp3\n'
+              '        └── aaaa0015_Superhits-Extension/\n'
               '            ├── 00015_Song Title.mp3\n'
               '            └── 00016_Another Song.mp3',
               style: TextStyle(fontFamily: 'monospace', fontSize: 12),
+            ),
+          ),
+
+          const SizedBox(height: 48),
+          const Divider(),
+          const SizedBox(height: 16),
+          Center(
+            child: Column(
+              children: [
+                Image.asset(
+                  'assets/branding/app_icon.png',
+                  width: 64,
+                  height: 64,
+                  color: Colors.grey,
+                  colorBlendMode: BlendMode.srcIn,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'QR Jukebox',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: Colors.grey,
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                const Text(
+                  'Version 1.0.3',
+                  style: TextStyle(color: Colors.grey),
+                ),
+                const Text(
+                  'Created by Lennard Hanß',
+                  style: TextStyle(color: Colors.grey, fontSize: 12),
+                ),
+                const SizedBox(height: 8),
+                TextButton.icon(
+                  onPressed: () => launchUrl(
+                    Uri.parse('https://github.com/lexygo/QRJukebox'),
+                    mode: LaunchMode.externalApplication,
+                  ),
+                  icon: const Icon(Icons.code),
+                  label: const Text('Further information in GitHub'),
+                ),
+                const SizedBox(height: 32),
+              ],
             ),
           ),
         ],
