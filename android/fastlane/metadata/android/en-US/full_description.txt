@@ -1,0 +1,21 @@
+# QR Jukebox
+is a lightweight, generic offline audio player designed to bridge the gap between physical objects and digital music. By mapping QR codes to your local music library, it becomes the perfect companion for DIY board games.
+Perfect for Music Trivia Games: This app was designed with versatility in mind. It is highly compatible with popular modern music trivia games (such as Hitster™). If you own a local collection of the songs from your favorite game, you can use QR Jukebox as a fast, privacy-friendly, and 100% offline alternative to the official online player. It even supports original URL structures to make mapping your library a breeze.
+
+How it works: The app scans a QR code containing a URL and maps it to a specific local audio file by mirroring the URL's path structure in your local filesystem.
+- The Domain of the URL is the root folder.
+- All Path Segments before the last one are treated as subdirectories.
+- The Last Segment is the Track ID (filename prefix).
+
+**Key Features:**
+- Offline First: No internet connection required once your media is on the device.
+- Privacy Focused: No tracking, no ads, and no cloud sync.
+- Metadata & Art: Displays Title, Artist, Album, and Fullscreen Cover Art from ID3 tags.
+- Customizable Playback: Set a global start offset (e.g., 30s) to skip intros automatically.
+- Game Timer: Optional stopwatch to track "thinking time" per card or scan.
+- Easy Navigation: Quick 10s skip buttons and smooth marquee for long titles.
+
+Supported Formats: .mp3, .m4a, .wav, .flac
+
+---
+Disclaimer: This app is a generic tool and is not affiliated with, endorsed by, or associated with Hitster™ or any other board game manufacturer. All trademarks are the property of their respective owners.
