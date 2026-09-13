@@ -61,6 +61,7 @@ android {
             isShrinkResources = false
         }
     }
+}
 
 kotlin {
     compilerOptions {
