@@ -1,9 +1,8 @@
 import 'dart:io';
 import 'dart:math';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:flutter_zxing/flutter_zxing.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -356,16 +355,26 @@ class _ScannerPageState extends State<ScannerPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Scan QR Code')),
-      body: MobileScanner(
-        onDetect: (capture) {
+      appBar: AppBar(
+        title: const Text('Scan QR Code'),
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+      ),
+      backgroundColor: Colors.black,
+      body: ReaderWidget(
+        onScan: (result) {
           if (_hasScanned) return;
-          final url = capture.barcodes.firstOrNull?.rawValue;
-          if (url != null) {
+          if (result.text != null && result.text!.isNotEmpty) {
             _hasScanned = true;
-            Navigator.pop(context, url);
+            HapticFeedback.mediumImpact();
+            Navigator.pop(context, result.text);
           }
         },
+        scanDelay: const Duration(milliseconds: 100),
+        showScannerOverlay: false,
+        tryHarder: true,
+        tryInverted: true,
+        cropPercent: 0.8,
       ),
     );
   }
@@ -525,11 +534,11 @@ class _PlayerPageState extends State<PlayerPage> {
             parsed: parsed,
             mediaRoot: widget.mediaRoot,
             prefs: widget.prefs,
-            ),
           ),
-        );
-      }
+        ),
+      );
     }
+  }
 
   Future<bool> _ensurePermission() async {
     if (await Permission.manageExternalStorage.isGranted) return true;
@@ -1119,7 +1128,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       ),
                 ),
                 const Text(
-                  'Version 1.0.8',
+                  'Version 1.0.9',
                   style: TextStyle(color: Colors.grey),
                 ),
                 const Text(

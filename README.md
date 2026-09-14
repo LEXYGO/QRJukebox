@@ -47,7 +47,7 @@ Supported formats: `.mp3`, `.m4a`, `.wav`, `.flac`.
 
 This project is built with [Flutter](https://flutter.dev) and powered by these amazing open-source libraries:
 
-- **[mobile_scanner](https://pub.dev/packages/mobile_scanner)** - High-performance QR code scanning.
+- **[flutter_zxing](https://pub.dev/packages/flutter_zxing)** - High-performance, FOSS QR code scanning using ZXing C++ via FFI (F-Droid compliant).
 - **[audioplayers](https://pub.dev/packages/audioplayers)** - Reliable audio playback.
 - **[audiotags](https://pub.dev/packages/audiotags)** - Extracting metadata and album art.
 - **[file_picker](https://pub.dev/packages/file_picker)** - Native directory selection.
