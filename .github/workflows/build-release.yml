@@ -38,7 +38,7 @@ jobs:
           echo "$KEYSTORE_BASE64" | base64 --decode > android/app/qrjukebox-release-key.jks
 
       - name: Build Android APK
-        run: flutter build apk --release
+        run: flutter build apk --release --no-tree-shake-icons
 
       - name: Readout version tag
         id: get_version
