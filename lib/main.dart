@@ -1128,7 +1128,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       ),
                 ),
                 const Text(
-                  'Version 1.0.11',
+                  'Version 1.0.12',
                   style: TextStyle(color: Colors.grey),
                 ),
                 const Text(
