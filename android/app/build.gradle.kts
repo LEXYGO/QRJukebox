@@ -33,6 +33,14 @@ android {
         targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        externalNativeBuild {
+            cmake {
+                val projectRoot = rootProject.projectDir.parentFile.absolutePath
+                cppFlags += listOf("-ffile-prefix-map=$projectRoot=.")
+                cFlags += listOf("-ffile-prefix-map=$projectRoot=.")
+            }
+        }
     }
 
     signingConfigs {
