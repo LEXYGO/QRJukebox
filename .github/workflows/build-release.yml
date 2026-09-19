@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*'
 
+env:
+  FLUTTER_VERSION: '3.44.1'
+
 jobs:
   build-android-fatapk:
     runs-on: ubuntu-latest
@@ -21,7 +24,7 @@ jobs:
           java-version: '17'
       - name: Clone Flutter SDK (matching F-Droid srclib method)
         run: |
-          git clone --branch 3.44.1 --depth 1 https://github.com/flutter/flutter.git $HOME/flutter
+          git clone --branch ${{ env.FLUTTER_VERSION }} --depth 1 https://github.com/flutter/flutter.git $HOME/flutter
           echo "$HOME/flutter/bin" >> $GITHUB_PATH
       - name: Configure flutter
         run: flutter config --no-analytics
@@ -53,7 +56,7 @@ jobs:
           java-version: '17'
       - name: Clone Flutter SDK (matching F-Droid srclib method)
         run: |
-          git clone --branch 3.44.1 --depth 1 https://github.com/flutter/flutter.git $HOME/flutter
+          git clone --branch ${{ env.FLUTTER_VERSION }} --depth 1 https://github.com/flutter/flutter.git $HOME/flutter
           echo "$HOME/flutter/bin" >> $GITHUB_PATH
       - name: Configure flutter
         run: flutter config --no-analytics
