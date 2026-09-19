@@ -19,12 +19,14 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: subosito/flutter-action@v2
-        with:
-          flutter-version-file: 'pubspec.yaml'
-          cache: true
-      - run: flutter config --no-analytics
-      - run: flutter pub get --enforce-lockfile
+      - name: Clone Flutter SDK (matching F-Droid srclib method)
+        run: |
+          git clone --branch 3.44.1 --depth 1 https://github.com/flutter/flutter.git $HOME/flutter
+          echo "$HOME/flutter/bin" >> $GITHUB_PATH
+      - name: Configure flutter
+        run: flutter config --no-analytics
+      - name: Install dependencies
+        run: flutter pub get --enforce-lockfile
       - name: Recover keystore
         if: env.KEYSTORE_BASE64 != ''
         run: echo "$KEYSTORE_BASE64" | base64 --decode > android/app/qrjukebox-release-key.jks
@@ -49,12 +51,14 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: subosito/flutter-action@v2
-        with:
-          flutter-version-file: 'pubspec.yaml'
-          cache: true
-      - run: flutter config --no-analytics
-      - run: flutter pub get --enforce-lockfile
+      - name: Clone Flutter SDK (matching F-Droid srclib method)
+        run: |
+          git clone --branch 3.44.1 --depth 1 https://github.com/flutter/flutter.git $HOME/flutter
+          echo "$HOME/flutter/bin" >> $GITHUB_PATH
+      - name: Configure flutter
+        run: flutter config --no-analytics
+      - name: Install dependencies
+        run: flutter pub get --enforce-lockfile
       - name: Recover keystore
         if: env.KEYSTORE_BASE64 != ''
         run: echo "$KEYSTORE_BASE64" | base64 --decode > android/app/qrjukebox-release-key.jks
