@@ -8,7 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path/path.dart' as p;
 import 'package:marquee/marquee.dart';
-import 'package:audiotags/audiotags.dart';
+import 'package:audio_metadata_reader/audio_metadata_reader.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -402,7 +402,7 @@ class _PlayerPageState extends State<PlayerPage> {
   final _player = AudioPlayer();
 
   File? _file;
-  Tag? _tags;
+  AudioMetadata? _tags;
   bool _loading = true;
   bool _completed = false;
   String? _error;
@@ -457,7 +457,7 @@ class _PlayerPageState extends State<PlayerPage> {
         if (mounted) {
           setState(() {
             _error =
-                'Storage access denied.\n\nPlease allow "Manage all files" in Android settings.';
+                'Storage access denied.\n\nPlease allow storage permission in Android settings.';
             _loading = false;
           });
         }
@@ -488,9 +488,9 @@ class _PlayerPageState extends State<PlayerPage> {
     final folderName = p.basename(file.parent.path);
     final underscoreIdx = folderName.indexOf('_');
 
-    Tag? tags;
+    AudioMetadata? tags;
     try {
-      tags = await AudioTags.read(file.path);
+      tags = readMetadata(file, getImage: true);
     } catch (_) {}
 
     setState(() {
@@ -541,10 +541,14 @@ class _PlayerPageState extends State<PlayerPage> {
   }
 
   Future<bool> _ensurePermission() async {
-    if (await Permission.manageExternalStorage.isGranted) return true;
-    final r = await Permission.manageExternalStorage.request();
-    if (r.isGranted) return true;
-    return (await Permission.storage.request()).isGranted;
+    if (await Permission.audio.isGranted || await Permission.storage.isGranted) {
+      return true;
+    }
+    final audioStatus = await Permission.audio.request();
+    if (audioStatus.isGranted) return true;
+
+    final storageStatus = await Permission.storage.request();
+    return storageStatus.isGranted;
   }
 
   Future<void> _togglePlayPause() async {
@@ -611,12 +615,12 @@ class _PlayerPageState extends State<PlayerPage> {
               _infoRow('Game Set', _gameName ?? (widget.parsed.folders.isNotEmpty ? widget.parsed.folders.last : 'Root')),
               if (_tags?.title != null && _tags!.title!.isNotEmpty)
                 _infoRow('Title', _tags!.title!),
-              if (_tags?.trackArtist != null && _tags!.trackArtist!.isNotEmpty)
-                _infoRow('Artist', _tags!.trackArtist!),
+              if (_tags?.artist != null && _tags!.artist!.isNotEmpty)
+                _infoRow('Artist', _tags!.artist!),
               if (_tags?.album != null && _tags!.album!.isNotEmpty)
                 _infoRow('Album', _tags!.album!),
-              if (_tags?.year != null)
-                _infoRow('Year', _tags!.year!.toString()),
+              if (_tags?.year != null && _tags!.year!.year != 0)
+                _infoRow('Year', _tags!.year!.year.toString()),
               _infoRow('File Size', sizeStr),
               _infoRow('File Name', p.basename(_file!.path)),
               _infoRow('Full Path', _file!.path),
@@ -1128,7 +1132,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       ),
                 ),
                 const Text(
-                  'Version 1.0.14',
+                  'Version 1.0.15',
                   style: TextStyle(color: Colors.grey),
                 ),
                 const Text(

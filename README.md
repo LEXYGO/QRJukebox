@@ -49,7 +49,7 @@ This project is built with [Flutter](https://flutter.dev) and powered by these a
 
 - **[flutter_zxing](https://pub.dev/packages/flutter_zxing)** - High-performance, FOSS QR code scanning using ZXing C++ via FFI (F-Droid compliant).
 - **[audioplayers](https://pub.dev/packages/audioplayers)** - Reliable audio playback.
-- **[audiotags](https://pub.dev/packages/audiotags)** - Extracting metadata and album art.
+- **[audio_metadata_reader](https://pub.dev/packages/audio_metadata_reader)** - Pure-Dart metadata and album art extraction (F-Droid compliant).
 - **[file_picker](https://pub.dev/packages/file_picker)** - Native directory selection.
 - **[marquee](https://pub.dev/packages/marquee)** - Smooth scrolling for long titles.
 - **[url_launcher](https://pub.dev/packages/url_launcher)** - Opening external links.
