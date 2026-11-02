@@ -2,6 +2,12 @@
 
 A lightweight, generic offline audio player that maps QR codes to your local music library. Perfect for DIY board games, scavenger hunts, or interactive exhibits.
 
+<p align="center">
+  <a href="https://f-droid.org/de/packages/com.lennardhanss.qrjukebox/">
+    <img src="https://f-droid.org/badge/get-it-on-en.png" alt="Get it on F-Droid" height="100">
+  </a>
+</p>
+
 ## 🚀 How it works
 
 The app scans a QR code containing a URL and maps it to a specific local audio file by mirroring the URL's path structure in your local filesystem.
