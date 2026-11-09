@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
+import 'package:qr_jukebox/app/qr_jukebox_app.dart';
 import 'package:qr_jukebox/services/app_version.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -28,7 +29,6 @@ class _SettingsPageState extends State<SettingsPage> {
       text: (widget.prefs.getInt('playbackStartOffset') ?? 0).toString(),
     );
   }
-
 
   @override
   void dispose() {
@@ -89,6 +89,58 @@ class _SettingsPageState extends State<SettingsPage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          Text('Appearance',
+              style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: SegmentedButton<String>(
+              segments: const [
+                ButtonSegment(
+                  value: 'system',
+                  label: Text('System'),
+                  icon: Icon(Icons.brightness_auto),
+                ),
+                ButtonSegment(
+                  value: 'light',
+                  label: Text('Light'),
+                  icon: Icon(Icons.light_mode),
+                ),
+                ButtonSegment(
+                  value: 'dark',
+                  label: Text('Dark'),
+                  icon: Icon(Icons.dark_mode),
+                ),
+              ],
+              selected: {widget.prefs.getString('themeMode') ?? 'system'},
+              onSelectionChanged: (newSelection) async {
+                final jukeboxApp = QRJukeboxApp.of(context);
+                final mode = newSelection.first;
+                await widget.prefs.setString('themeMode', mode);
+                if (!mounted) return;
+                jukeboxApp?.reloadTheme();
+                setState(() {});
+              },
+            ),
+          ),
+          const SizedBox(height: 8),
+          SwitchListTile(
+            title: const Text('Dynamic Color'),
+            subtitle: const Text('Use Material You system wallpaper colors'),
+            value: widget.prefs.getBool('useDynamicColor') ?? true,
+            onChanged: (value) async {
+              final jukeboxApp = QRJukeboxApp.of(context);
+              await widget.prefs.setBool('useDynamicColor', value);
+              if (!mounted) return;
+              jukeboxApp?.reloadTheme();
+              setState(() {});
+            },
+            secondary: const Icon(Icons.palette_outlined),
+            contentPadding: EdgeInsets.zero,
+          ),
+          const SizedBox(height: 28),
+          const Divider(),
+          const SizedBox(height: 16),
           Text('Device Settings',
               style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
@@ -135,43 +187,6 @@ class _SettingsPageState extends State<SettingsPage> {
               style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 12),
 
-          /* Old Mechanism with TextField and FilePicker
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _pathCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Path',
-                    hintText: '/storage/emulated/0/Music/Jukebox',
-                    border: OutlineInputBorder(),
-                    helperText: 'Folder containing <host>/<language>/<gameId>_*//*',
-                  ),
-                  onSubmitted: _savePath,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: IconButton.filled(
-                  icon: const Icon(Icons.folder_open),
-                  onPressed: _pickDir,
-                  tooltip: 'Choose Folder',
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: () => _savePath(_pathCtrl.text),
-              icon: const Icon(Icons.save),
-              label: const Text('Save Path'),
-            ),
-          ),
-          */
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
@@ -182,10 +197,10 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           Text(
             'Current folder: ${_pathCtrl.text}',
-            style: TextStyle(fontSize: 12),
+            style: const TextStyle(fontSize: 12),
           ),
           const SizedBox(height: 8),
-          Text ('Expected folder structure:'),
+          const Text('Expected folder structure:'),
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -211,12 +226,13 @@ class _SettingsPageState extends State<SettingsPage> {
           Center(
             child: Column(
               children: [
-                Image.asset(
-                  'assets/branding/app_icon.png',
-                  width: 64,
-                  height: 64,
-                  color: Colors.grey,
-                  colorBlendMode: BlendMode.srcIn,
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: Image.asset(
+                    'assets/branding/app_icon.png',
+                    width: 64,
+                    height: 64,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 Text(
@@ -228,7 +244,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 Text(
                   'Version ${AppVersion.version}',
-                  style: TextStyle(color: Colors.grey),
+                  style: const TextStyle(color: Colors.grey),
                 ),
                 const Text(
                   'Created by Lennard Hanß',
