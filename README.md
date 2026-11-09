@@ -62,6 +62,7 @@ This project is built with [Flutter](https://flutter.dev) and powered by these a
 - **[path](https://pub.dev/packages/path)** - Cross-platform path manipulation.
 - **[permission_handler](https://pub.dev/packages/permission_handler)** - Managing Android storage permissions.
 - **[wakelock_plus](https://pub.dev/packages/wakelock_plus)** - Prevents the device from sleeping while playing.
+- **[package_info_plus](https://pub.dev/packages/package_info_plus/install)** - To get package version during runtime.
 
 ## ⚖️ License
 
