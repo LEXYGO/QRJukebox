@@ -113,7 +113,8 @@ class _HomePageState extends State<HomePage> {
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: cs.inversePrimary,
+        backgroundColor: cs.primaryContainer,
+        foregroundColor: cs.onPrimaryContainer,
         title: const Text('QR Jukebox'),
         actions: [
           IconButton(

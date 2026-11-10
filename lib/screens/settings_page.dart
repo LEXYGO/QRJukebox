@@ -83,7 +83,8 @@ class _SettingsPageState extends State<SettingsPage> {
     final cs = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: cs.inversePrimary,
+        backgroundColor: cs.primaryContainer,
+        foregroundColor: cs.onPrimaryContainer,
         title: const Text('Settings'),
       ),
       body: ListView(
@@ -195,19 +196,30 @@ class _SettingsPageState extends State<SettingsPage> {
               label: const Text('Choose Folder'),
             ),
           ),
-          Text(
-            'Current folder: ${_pathCtrl.text}',
-            style: const TextStyle(fontSize: 12),
-          ),
+          const SizedBox(height: 2),
+          if (_pathCtrl.text.isEmpty) ...[
+            Text(
+              'No folder selected!',
+              style: TextStyle(
+                fontSize: 24,
+                color: cs.error,
+              ),
+            ),
+          ] else ...[
+            Text(
+              'Selected folder: ${_pathCtrl.text}',
+              style: const TextStyle(fontSize: 12),
+            ),
+          ],
           const SizedBox(height: 8),
           const Text('Expected folder structure:'),
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: cs.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(8),
+              color: cs.primary.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
             ),
-            child: const Text(
+            child: Text(
               '<Media Folder>/\n'
                   '└── example.com/\n'
                   '    └── de_original-game-edition/\n'
@@ -216,7 +228,11 @@ class _SettingsPageState extends State<SettingsPage> {
                   '        └── aaaa0015_Superhits-Extension/\n'
                   '            ├── 00015_Song Title.mp3\n'
                   '            └── 00016_Another Song.mp3',
-              style: TextStyle(fontFamily: 'monospace', fontSize: 12),
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 12,
+                color: cs.onSurface,
+              ),
             ),
           ),
 

@@ -288,7 +288,8 @@ class _PlayerPageState extends State<PlayerPage> {
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: cs.inversePrimary,
+        backgroundColor: cs.primaryContainer,
+        foregroundColor: cs.onPrimaryContainer,
         title: Row(
           children: [
             Expanded(
@@ -296,9 +297,9 @@ class _PlayerPageState extends State<PlayerPage> {
                 height: 24,
                 child: Marquee(
                   text: '#$trackDisplay  ·  ${_gameName ?? (widget.parsed.folders.isNotEmpty ? widget.parsed.folders.last : 'Root')}',
-                  style: Theme.of(context).appBarTheme.titleTextStyle ??
-                      Theme.of(context).textTheme.titleLarge?.copyWith(
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.normal,
+                        color: cs.onPrimaryContainer,
                       ),
                   scrollAxis: Axis.horizontal,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -426,12 +427,23 @@ class _PlayerPageState extends State<PlayerPage> {
 
         const SizedBox(height: 16),
 
-        Slider(
-          value: curMs,
-          max: maxMs > 0 ? maxMs : 1.0,
-          onChanged: maxMs > 0
-              ? (v) => _player.seek(Duration(milliseconds: v.toInt()))
-              : null,
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            activeTrackColor: cs.primary,
+            inactiveTrackColor: cs.primary.withValues(alpha: 0.24),
+            thumbColor: cs.primary,
+            overlayColor: cs.primary.withValues(alpha: 0.12),
+            trackHeight: 4.0,
+          ),
+          child: Slider(
+            value: curMs,
+            max: maxMs > 0 ? maxMs : 1.0,
+            onChanged: (v) {
+              if (maxMs > 0) {
+                _player.seek(Duration(milliseconds: v.toInt()));
+              }
+            },
+          ),
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8),
