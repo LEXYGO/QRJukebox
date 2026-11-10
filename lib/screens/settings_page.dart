@@ -226,29 +226,31 @@ class _SettingsPageState extends State<SettingsPage> {
           Center(
             child: Column(
               children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: Image.asset(
-                    'assets/branding/app_icon.png',
-                    width: 64,
-                    height: 64,
-                  ),
+                Image.asset(
+                  'assets/branding/app_icon_inapp.png',
+                  width: 64,
+                  height: 64,
+                  color: cs.primary,
                 ),
                 const SizedBox(height: 12),
                 Text(
                   'QR Jukebox',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: Colors.grey,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
+                const SizedBox(height: 2),
                 Text(
                   'Version ${AppVersion.version}',
-                  style: const TextStyle(color: Colors.grey),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
                 ),
-                const Text(
+                Text(
                   'Created by Lennard Hanß',
-                  style: TextStyle(color: Colors.grey, fontSize: 12),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 TextButton.icon(

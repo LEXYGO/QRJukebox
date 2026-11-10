@@ -129,8 +129,13 @@ class _HomePageState extends State<HomePage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.qr_code_2_rounded, size: 96, color: cs.primary),
-              const SizedBox(height: 12),
+              Image.asset(
+                'assets/branding/app_icon_inapp.png',
+                width: 128,
+                height: 128,
+                color: cs.primary,
+              ),
+              const SizedBox(height: 4),
               Text(
                 'QR Jukebox',
                 style: Theme.of(context).textTheme.headlineLarge?.copyWith(
@@ -161,7 +166,7 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ],
               ),
-              const SizedBox(height: 48),
+              const SizedBox(height: 36),
               SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
