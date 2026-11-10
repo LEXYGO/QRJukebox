@@ -1,24 +1,19 @@
-<p><b>QR Jukebox</b> is a lightweight, generic offline audio player designed to bridge the gap between physical objects and digital music. By mapping QR codes to your local music library, it becomes the perfect companion for DIY board games.</p>
-
-<p><b>Perfect for Music Trivia Games:</b> This app was designed with versatility in mind. It is highly compatible with popular modern music trivia games (such as Hitster™). If you own a local collection of the songs from your favorite game, you can use QR Jukebox as a fast, privacy-friendly, and 100% offline alternative to the official online player. It even supports original URL structures to make mapping your library a breeze.</p>
-
-<p><b>How it works:</b> The app scans a QR code containing a URL and maps it to a specific local audio file by mirroring the URL's path structure in your local filesystem.</p>
+<p><b>QR Jukebox</b> is a lightweight, generic offline audio player that bridges the gap between physical objects and digital music. By mapping QR codes to your local music library, it is the perfect companion for DIY board games.</p>
+<p><b>Perfect for Music Trivia Games:</b> Designed with versatility in mind, QR Jukebox is highly compatible with popular music trivia games such as Hitster™. If you have a local collection of the songs from your favorite game, you can use QR Jukebox as a fast, privacy-friendly, and completely offline alternative to the official online player. It even supports original URL structures, making it easy to map your music library.</p>
+<p><b>How it works:</b> QR Jukebox scans a QR code containing a URL and maps it to a local audio file by mirroring the URL's path structure in your local filesystem:</p>
 <ul>
-<li>The domain of the URL is the root folder.</li>
-<li>All path segments before the last one are treated as subdirectories.</li>
-<li>The last segment is the track ID (filename prefix).</li>
+<li>The URL domain corresponds to the root folder.</li>
+<li>All path segments except the last one are treated as subdirectories.</li>
+<li>The last path segment represents the track ID (filename prefix).</li>
 </ul>
-
 <p><b>Key Features:</b></p>
 <ul>
-<li>Offline First: No internet connection required once your media is on the device.</li>
-<li>Privacy Focused: No tracking, no ads, and no cloud sync.</li>
-<li>Metadata and Art: Can display title, artist, album, and fullscreen cover art from ID3 tags.</li>
-<li>Customizable Playback: Set a global start offset (e.g. 30s) to skip intros automatically.</li>
-<li>Game Timer: Optional stopwatch to track "thinking time" per card or scan.</li>
-<li>Easy Navigation: Quick 10s skip buttons and smooth marquee for long titles.</li>
+<li><b>Offline First:</b> No internet connection required once your music is stored on your device.</li>
+<li><b>Privacy Focused:</b> No tracking, no ads, and no cloud sync.</li>
+<li><b>Metadata &amp; Artwork:</b> Displays title, artist, album, and fullscreen cover art from ID3 tags.</li>
+<li><b>Customizable Playback:</b> Set a global start offset (e.g. 30 seconds) to automatically skip intros.</li>
+<li><b>Game Timer:</b> Optional stopwatch to track thinking time per card or scan.</li>
+<li><b>Easy Navigation:</b> Quick 10-second skip buttons and smooth scrolling for long titles.</li>
 </ul>
-
-<p><b>Supported Formats:</b> .mp3, .m4a, .wav, .flac</p>
-
-<p><i>Disclaimer: This app is a generic tool and is not affiliated with, endorsed by, or associated with Hitster™ or any other board game manufacturer. All trademarks are the property of their respective owners.</i></p>
+<p><b>Supported Formats:</b> MP3, M4A, WAV, FLAC</p>
+<p><i>Disclaimer: QR Jukebox is a generic tool and is not affiliated with, endorsed by, or associated with Hitster™ or any other board game manufacturer. All trademarks are the property of their respective owners.</i></p>
